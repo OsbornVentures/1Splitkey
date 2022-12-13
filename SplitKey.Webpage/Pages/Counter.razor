@@ -1,0 +1,40 @@
+﻿@page "/process-key"
+@using Microsoft.AspNetCore.WebUtilities
+@using SplitKey.Webpage.Extensions
+@inject NavigationManager NavManager
+@inject IJSRuntime JSRuntime
+
+
+@code {
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            NavManager.TryGetQueryString<string>("publickey", out string publicKey);
+            NavManager.TryGetQueryString<string>("targetwallet", out string targetWallet);
+            NavManager.TryGetQueryString<string>("partialprivate", out string partialPrivate);
+            NavManager.TryGetQueryString<string>("hash", out string hash);
+            NavManager.TryGetQueryString<string>("workerid", out string workerId);
+
+            var wallet = await JSRuntime.InvokeAsync<string>("addKeys", new object[] { publicKey, partialPrivate });
+
+            if (wallet == targetWallet)
+            {
+                // Send success key to API.
+            }
+            else
+            {
+                // Send failure key to API.
+            }
+
+            if (new string[] { publicKey, targetWallet, partialPrivate, hash, workerId }.Any(x => string.IsNullOrEmpty(x)))
+            {
+                
+            }
+
+            Console.WriteLine(wallet);
+        }
+
+        await base.OnAfterRenderAsync(firstRender);
+    }
+}

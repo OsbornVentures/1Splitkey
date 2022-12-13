@@ -1,0 +1,25 @@
+@using System.Linq
+
+@{
+	Dictionary<string, object> body = Functions.ParseBody();
+
+	if(body == null)
+	{
+		@Html.Raw(Functions.Failure("EMPTY_BODY"))
+		return;
+	}
+
+	if(!body.ContainsKey("hash"))
+	{
+		@Html.Raw(Functions.Failure("INVALID_PARAMETERS"))
+		return;
+	}
+
+	string getRequestUrl = "SELECT COUNT(id) From Requests WHERE hash=@h AND wallet_result IS NOT NULL";
+	Dictionary<string, object> getRequestParams = new Dictionary<string, object>{ { "h", body["hash"].ToString() } };
+	int hasResolved = Functions.GetSqlResult<int>(getRequestUrl, false, getRequestParams);
+
+	Dictionary<string, object> result = new Dictionary<string, object> { { "resolved", hasResolved != 0 } };
+
+	@Html.Raw(Functions.Success(result))
+}

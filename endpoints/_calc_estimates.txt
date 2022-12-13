@@ -1,0 +1,168 @@
+@{
+	Dictionary<string, object> body = Functions.ParseBody();
+
+	if(body == null)
+	{
+		@Html.Raw(Functions.Failure("EMPTY_BODY"))
+		return;
+	}
+
+	//Check for and handle missing keys
+	List<string> requiredKeys = new List<string>{ "wallet_name", "case_insensitive", "wallet_type", "email" };
+	List<string> missing = new List<string>();
+	if(!Functions.HasRequiredKeys(body, requiredKeys, out missing))
+	{
+		@Html.Raw(Functions.Failure("INVALID_PARAMETERS"))
+		return;
+	}
+
+	bool caseInsensitive;
+	string walletName;
+	string walletType;
+	if(!IsValidCaseInsensitive(body["case_insensitive"], out caseInsensitive))
+	{
+		@Html.Raw(Functions.Failure("INVALID_PARAMETERS"))
+		return;
+	}
+
+	if(!IsValidWalletType(body["wallet_type"], out walletType))
+	{
+		@Html.Raw(Functions.Failure("INVALID_PARAMETERS"))
+		return;
+	}
+
+	if(!IsValidWalletName(body["wallet_name"], caseInsensitive, out walletName))
+	{
+		@Html.Raw(Functions.Failure("INVALID_PARAMETERS"))
+		return;
+	}
+
+	string email = body["email"].ToString();
+
+
+	ulong diff = Functions.CalculateWalletDifficulty(walletName, walletType, caseInsensitive);
+	
+	double seconds = Functions.CalculateTimeForDifficulty(diff);
+	string timeString = TimeToString(seconds);
+	double price = 0.0;
+
+	string frequencySql = "SELECT COUNT(id) FROM Requests WHERE ip_address = @i AND created_at >= DATEADD(day, -7, GETDATE()) AND email = @e";
+	Dictionary<string, object> frequencyParams = new Dictionary<string, object> { { "i", Request["REMOTE_ADDR"] }, { "e", email } };
+	int frequencyLastWeek = Functions.GetSqlResult<int>(frequencySql, false, frequencyParams);
+	bool frequencyError = frequencyLastWeek > 0;
+
+	Dictionary<string, object> response = new Dictionary<string, object>();
+
+	/*if(diff > 2265731445780280)
+	{
+		response.Add("price", "Please contact us at support@1splitkey.com for a custom quote");
+		response.Add("time", "-");
+		response.Add("difficulty", 0);
+		@Html.Raw(Functions.Success(response))
+		return;
+	}*/
+
+	response.Add("difficulty", diff);
+	response.Add("time", timeString);
+
+	if(diff > 55527913159)
+	{
+		price = Functions.CalculatePriceForTime(seconds);
+		if(price < 1.0)
+		{
+			price = 0;
+		}
+	}
+	if(frequencyError && price < 1.0)
+	{
+		price = 1.0;
+		response.Add("frequency", "You have previously requested a free wallet the past 7 days, price will be increased to $1.");
+	}
+
+	response.Add("price", price.ToString("F"));
+
+	@Html.Raw(Functions.Success(response))
+}
+
+@functions
+{
+	static bool IsValidCaseInsensitive(object ci, out bool result)
+	{
+		string str = ci.ToString().ToLower();
+		if(str == "true") 
+			result = true;
+		else 
+			result = false;
+
+		return str == "true" || str == "false";
+	}
+
+	static bool IsValidWalletType(object type, out string result)
+	{
+		string str = type.ToString().ToLower();
+		result = string.Empty;
+		if(str == "legacy")
+		{
+			result = str;
+			return true;
+		}
+
+		return false;
+	}
+
+	static bool IsValidWalletName(object name, bool CI, out string result)
+	{
+		string str = name.ToString();
+		result = str;
+
+		if(str.Length > 9) return false;
+
+		if(str.Contains("**") || str.Contains(' ') || str.Contains('\t'))
+		{
+			return false;
+		}
+
+		foreach(char chr in str)
+		{
+			if(!Char.IsLetter(chr) && !Char.IsNumber(chr))
+			{
+				return false;
+			}
+		}
+
+		if(!CI)
+		{
+			if( str.Contains('I') || str.Contains('l') || 
+			str.Contains('O') || str.Contains('0'))
+			{
+				return false;
+			}
+		}
+		return true;
+	}
+
+	static string TimeToString(double seconds)
+	{
+		if(seconds < 60)
+		{
+			return "Less than a minute";
+		}
+
+		double minutes = seconds / 60.0;
+		if(minutes < 60)
+		{
+			return ((int)minutes) + " minutes";
+		}
+
+		double hours = minutes / 60.0;
+		if(hours < 10)
+		{
+			double roundedHours = (int)(hours * 10) / 10.0;
+			return roundedHours + " hours";
+		}
+		else
+		{
+			return ((int)(hours)) + " hours";
+		}
+	}
+}

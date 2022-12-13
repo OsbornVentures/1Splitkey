@@ -1,0 +1,15 @@
+@{
+	Dictionary<string, object> body = Functions.ParseBody();
+
+	return;
+
+	string mailContent = File.ReadAllText(@"C:\inetpub\wwwroot\1splitkey\email\completed_work.html")
+	.Replace("{{POOL_KEY}}", "Your partial private key goes here")
+	.Replace("{{WALLET_NAME}}", "When the automated system is done, this will be your result")
+	.Replace("<a href=\"https://1splitkey.com\">1SPLiTKEY</a>", "");	
+
+	Functions.SendMail("test-1qx3qbv5y@srv1.mail-tester.com", "We've completed your 1SPLiTKEY order!", mailContent);
+
+
+	@Html.Raw(Functions.Success(null))
+}

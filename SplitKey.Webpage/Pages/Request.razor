@@ -1,0 +1,27 @@
+﻿@page "/request"
+@using SplitKey.Dto
+
+<PageTitle>Request tracker</PageTitle>
+
+@if (request == null)
+{
+    <p><em>Loading...</em></p>
+}
+
+@code {
+    private RequestDto request;
+
+    [Inject] private NavigationManager navManager { get; set; }
+    [Inject] private HttpClient client { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        string url = navManager.Uri;
+        string key = url.Split('/').Last();
+        if (Guid.TryParse(key, out Guid requestId))
+        {
+        this.request = await this.client.GetFromJsonAsync<RequestDto>($"/api/requests/{requestId}");
+        this.StateHasChanged();    
+        }
+    }
+}

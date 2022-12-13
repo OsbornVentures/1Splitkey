@@ -1,0 +1,61 @@
+@{
+	Dictionary<string, object> body = Functions.ParseBody();
+
+	if(body == null)
+	{
+		@Html.Raw(Functions.Failure("EMPTY_BODY", null))
+		return;
+	}
+
+	List<string> requiredKeys = new List<string>{ "hash", "worker_id", "partial_private", "wallet_result" };
+	List<string> missing = new List<string>();
+	if(!Functions.HasRequiredKeys(body, requiredKeys, out missing))
+	{
+		Dictionary<string, object> reason = new Dictionary<string, object>{ 
+			{ "keys", String.Join(", ", missing) } 
+		};
+		@Html.Raw(Functions.Failure("MISSING_KEYS", reason))
+		return;
+	}
+
+	string hash = body["hash"].ToString();
+	string workerId = body["worker_id"].ToString();
+	string partialPrivate = body["partial_private"].ToString();
+	string walletResult = body["wallet_result"].ToString();
+
+	string requestSql = "SELECT COUNT(hash) FROM Requests WHERE hash=@h";
+	Dictionary<string, object> requestParams = new Dictionary<string, object>{ { "h", hash } };
+	if(Functions.GetSqlResult<int>(requestSql, false, requestParams) < 1)
+	{
+		@Html.Raw(Functions.Failure("REQUEST_NOT_FOUND"))
+		return;
+	}
+
+	string updateSql = "UPDATE Requests SET partial_private=@p, wallet_result=@r, worker_id=@w WHERE hash=@h";
+	Dictionary<string, object> updateParams = new Dictionary<string, object> { 
+		{ "p", partialPrivate },
+		{ "r", walletResult },
+		{ "w", workerId },
+		{ "h", hash } 
+	};
+	Functions.ExecuteSqlCommand(updateSql, true, updateParams);
+
+	string findEmailSql = "SELECT email FROM Requests WHERE hash=@h";
+	Dictionary<string, object> findEmailParams = new Dictionary<string, object> { { "h", hash } };
+	string UserEmail = Functions.GetSqlResult<string>(findEmailSql, false, findEmailParams);
+
+	string mailContent = File.ReadAllText(@"C:\inetpub\wwwroot\1splitkey\email\completed_work.html").Replace("{{POOL_KEY}}", partialPrivate).Replace("{{WALLET_NAME}}", walletResult);
+	Functions.SendMail(UserEmail, "We've completed your 1SPLiTKEY order!", mailContent);
+
+	string workerScoreSql = "SELECT COUNT(worker_id) FROM Requests WHERE worker_id=@i";
+	Dictionary<string, object> workerScoreParams = new Dictionary<string, object>{ { "i", workerId } };
+	int workerScore = Functions.GetSqlResult<int>(workerScoreSql, false, workerScoreParams);
+
+	string occurenceSql = "SELECT TOP 1 worker_id from Requests GROUP BY worker_id ORDER BY COUNT(worker_id) DESC";
+	int highscoreWorker = Functions.GetSqlResult<int>(occurenceSql, false, new Dictionary<string, object>());
+
+	//format email
+	//contact sendgrid for email
+
+	@Html.Raw(Functions.Success(new Dictionary<string, object>{ { "score", workerScore }, { "highscore", highscoreWorker == int.Parse(workerId) } }))
+}

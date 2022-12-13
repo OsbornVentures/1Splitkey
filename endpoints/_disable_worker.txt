@@ -1,0 +1,24 @@
+@{
+	Dictionary<string, object> body = Functions.ParseBody();
+
+	if(body == null)
+	{
+		@Html.Raw(Functions.Failure("EMPTY_BODY", null))
+		return;
+	}
+	if(!body.ContainsKey("worker_id"))
+	{
+		@Html.Raw(Functions.Failure("MISSING_KEYS", new Dictionary<string, object> { { "keys", "worker_id" } }))
+		return;
+	}
+
+	int Id = int.Parse(body["worker_id"].ToString());
+
+	if(Functions.GetSqlResult<int>("SELECT COUNT(id) FROM Workers WHERE id=@i", false, new Dictionary<string, object> { { "i", Id } }) == 0)
+	{
+		@Html.Raw(Functions.Failure("WORKER_DOESNT_EXIST"))
+		return;
+	}
+	Functions.ExecuteSqlCommand("UPDATE Workers SET active=0 WHERE id=@i", true, new Dictionary<string, object> { { "i", Id } } );
+	@Html.Raw(Functions.Success())
+}

@@ -1,0 +1,25 @@
+@using System.Linq
+
+@{
+	Dictionary<string, object> body = Functions.ParseBody();
+
+	if(body == null)
+	{
+		@Html.Raw(Functions.Failure("EMPTY_BODY"))
+		return;
+	}
+
+	if(!body.ContainsKey("feedback"))
+	{
+		@Html.Raw(Functions.Failure("INVALID_PARAMETERS"))
+		return;
+	}
+
+	string insertSql = "INSERT INTO Feedback (feedback) VALUES(@f)";
+	Dictionary<string, object> insertParams = new Dictionary<string, object>{ { "f", body["feedback"].ToString() } };
+	Functions.ExecuteSqlCommand(insertSql, true, insertParams);
+
+	Dictionary<string, object> response = new Dictionary<string, object> { { "value", "Thank you for your feedback!" } };
+
+	@Html.Raw(Functions.Success(response))
+}

@@ -1,0 +1,99 @@
+@{
+
+	Request.InputStream.Position = 0;
+    string content = new StreamReader(Request.InputStream).ReadToEnd();
+    string[] Params = content.Split('&');
+
+
+    Dictionary<string, object> body = new Dictionary<string, object>();
+    foreach(string pair in Params)
+    {
+    	string updated = pair.Replace("%5B", "_").Replace("%5D", "").Replace("%3A", ":");
+    	string[] split = updated.Split('=');
+    	if(split.Length > 1)
+    	{
+    		body.Add(split[0], split[1]);	
+    	}
+    }
+
+/*id=9216d2ea-793d-4654-8565-a2ac729fd1b0
+status=processing
+payment_method=onchain
+order_id=order_321220
+missing_amt=0
+price=11840
+net_fiat_value=4.68
+overpaid_by=0
+hashed_order=ede61c524d704a7398238fdac22370bb05935438b7b13085cc7ef9f1fddfb690*/
+
+
+    string opennodeId = body["id"].ToString();
+    string status = body["status"].ToString();	// < status
+    string paymentMethod = body["payment_method"].ToString(); // < payment_method
+    string orderId = body["order_id"].ToString(); // < order_id
+    int missingAmount = int.Parse(body["missing_amt"].ToString()); // < missing_amount
+    int price = int.Parse(body["price"].ToString());	// < price_sat
+    double fiatValue = double.Parse(body["net_fiat_value"].ToString()); // < net_fiat_value
+    int overpaidBy = int.Parse(body["overpaid_by"].ToString()); // < overpaid_by
+    string hashedOrder = body["hashed_order"].ToString();      // < hashed_order
+
+	//update payment based on new info
+    string sql = "UPDATE Payments SET status=@s, missing_amount=@m, payment_method=@y, price_sat=@p, overpaid_by=@o WHERE opennode_id=@i;";
+    Dictionary<string, object> SqlParams = new Dictionary<string, object>{ { "s", status }, { "m", missingAmount }, { "y", paymentMethod }, { "p", price }, { "o", overpaidBy }, { "i", opennodeId } };
+    Functions.ExecuteSqlCommand(sql, true, SqlParams);
+
+
+    if(body.ContainsKey("refund_id"))
+    {
+    	string refundStatus = body["refund_status"].ToString();
+		string refundId = body["refund_id"].ToString();
+    	string refundAddress = body["refund_address"].ToString();
+		int refundAmount = int.Parse(body["refund_amount"].ToString());
+		string refundType = body["refund_type"].ToString(); //refund_type:  overpayment / underpayment
+
+		string refundTx = string.Empty;
+		string refundProcessedAtRaw = string.Empty;
+		DateTime processedAt = DateTime.MinValue;
+
+    	if(refundStatus == "refunded") //pending / refunded
+    	{
+    		refundTx = body["refund_tx"].ToString();
+    		refundProcessedAtRaw = body["refund_processed_at"].ToString();
+    	}
+    	string refundCreatedAtRaw = body["refund_created_at"].ToString();
+		DateTime refundCreatedAt = DateTime.ParseExact(refundCreatedAtRaw, "yyyy-MM-ddTHH:mm:ss.fffZ", null);
+    	string refundCheckoutId = body["refund_checkout_id"].ToString();
+
+    	int? refundDbId = Functions.GetSqlResult<int?>("SELECT id FROM Refunds WHERE opennode_id= @o;", false, new Dictionary<string, object>{ {"o", opennodeId } });
+      
+      	if(refundDbId.HasValue)
+      	{
+      		string updateSql = "UPDATE Refunds SET refund_status=@s, processed_at=@p, refund_tx=@t WHERE opennode_id=@i;";
+      		Dictionary<string, object> updateRefundParams = new Dictionary<string, object> {
+      			{ "s", refundStatus }, 
+      			{ "p", refundProcessedAtRaw },
+      			{ "t", refundTx },
+      			{ "i", opennodeId }
+      		};
+      	}
+      	else
+      	{
+	      	string insertRefund = "INSERT INTO Refunds (refund_id, refund_address, refund_amount, refund_status, refund_checkout_id, refund_type, hashed_order, created_at, overpaid_by) VALUES(@i, @d, @a, @s, @c, @t, @h, @d, @o)";
+			Dictionary<string, object> insertRefundParams = new Dictionary<string, object> { 
+				{ "i", refundId }, 
+				{ "d", refundAddress }, 
+				{ "a",  refundAmount }, 
+				{ "s", refundStatus }, 
+				{ "c", refundCheckoutId }, 
+				{ "t", refundType },
+				{ "h", hashedOrder },
+				{ "d", refundCreatedAt },
+				{ "o", overpaidBy }
+			};
+			Functions.ExecuteSqlCommand(insertRefund, true, insertRefundParams);
+			//int? refundId = Functions.GetSqlResult<int?>("SELECT id FROM Refunds WHERE opennode_id= @o;", false, new Dictionary<string, object>{ {"o", opennodeId } });
+      	}
+    }
+
+    @Html.Raw(Functions.Success())
+}

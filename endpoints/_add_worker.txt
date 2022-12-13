@@ -1,0 +1,37 @@
+@{
+	Dictionary<string, object> body = Functions.ParseBody();
+
+	if(body == null)
+	{
+		@Html.Raw(Functions.Failure("EMPTY_BODY", null))
+		return;
+	}
+
+	List<string> requiredKeys = new List<string>{ "name", "speed" };
+	List<string> missing = new List<string>();
+	if(!Functions.HasRequiredKeys(body, requiredKeys, out missing))
+	{
+		Dictionary<string, object> reason = new Dictionary<string, object>{ 
+			{ "keys", String.Join(", ", missing) } 
+		};
+		@Html.Raw(Functions.Failure("MISSING_KEYS", reason))
+		return;
+	}
+
+	int existing = Functions.GetSqlResult<int>("SELECT COUNT(id) FROM Workers WHERE name=@n", false, new Dictionary<string, object> { { "n", body["name"].ToString() } });
+	if(existing != 0)
+	{
+		int existingId = Functions.GetSqlResult<int>("SELECT id FROM Workers WHERE name=@n", false, new Dictionary<string, object> { { "n", body["name"].ToString() } } );
+		@Html.Raw(Functions.Success(new Dictionary<string, object> { { "new_worker", false }, { "worker_id", existingId } }))
+		return;
+	}
+
+	string name = body["name"].ToString();
+	long speed = long.Parse(body["speed"].ToString());
+
+	string insertSql = "INSERT INTO Workers (name, speed) OUTPUT Inserted.id VALUES (@n, @s)";
+	Dictionary<string, object> insertParams = new Dictionary<string, object>{ { "n", name }, { "s", speed } };
+	int newWorker = Functions.GetSqlResult<int>(insertSql, true, insertParams);
+
+	@Html.Raw(Functions.Success(new Dictionary<string, object>{ { "worker_id", newWorker }, { "new_worker", true } }))
+}

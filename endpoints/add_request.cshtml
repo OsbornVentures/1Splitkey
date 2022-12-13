@@ -1,0 +1,365 @@
+@{
+	Dictionary<string, object> body = Functions.ParseBody();
+
+	if(body == null)
+	{
+		@Html.Raw(Functions.Failure("EMPTY_BODY", null))
+		return;
+	}
+
+	//Check for and handle missing keys
+	List<string> requiredKeys = new List<string>{ "public_key", "wallet_name", "case_insensitive", "email", "wallet_type", "hall_of_fame" };
+	List<string> missing = new List<string>();
+	if(!Functions.HasRequiredKeys(body, requiredKeys, out missing))
+	{
+		Dictionary<string, object> reason = new Dictionary<string, object>{ 
+			{ "keys", String.Join(", ", missing) } 
+		};
+		@Html.Raw(Functions.Failure("MISSING_KEYS", reason))
+		return;
+	}
+
+	Dictionary<string, object> errors = new Dictionary<string, object>();
+	
+	string walletType = CheckWalletType(body["wallet_type"], ref errors);
+	string publicKey =  CheckPublicKey(body["public_key"], walletType, ref errors);
+	string email = 		CheckEmail(body["email"], ref errors);
+	bool case_insensitive = CheckCI(body["case_insensitive"], ref errors);
+	string walletName = CheckWalletName(body["wallet_name"], walletType, case_insensitive, ref errors);
+	bool hallOfFame = CheckHoF(body["hall_of_fame"], ref errors);
+
+	if(errors.Count > 0)
+	{
+		@Html.Raw(Functions.Failure("INVALID_PARAMETERS", errors))
+		return;
+	}
+
+	string orderId = Functions.Sha256Hash(walletType + publicKey + email + walletName + Request["REMOTE_ADDR"] + DateTime.Now.ToString("YYYYMMddHHmmSS"));
+	ulong diff = Functions.CalculateWalletDifficulty(walletName, walletType, case_insensitive);
+
+	if(diff > 2265731445780280)
+	{
+		errors.Add("wallet_name", "Please contact us at support@1splitkey.com for a custom quote.");
+		@Html.Raw(Functions.Failure("INVALID_PARAMETERS", errors))
+		return;
+	}
+
+	int frequencyLastWeek = 0;
+	if(email != "osbornsmarthome@gmail.com" && email != "quentin-1@hotmail.com")
+	{
+		string frequencySql = "SELECT COUNT(id) FROM Requests WHERE ip_address = @i AND created_at >= DATEADD(day, -7, GETDATE()) AND email = @e";
+		Dictionary<string, object> frequencyParams = new Dictionary<string, object> { { "i", Request["REMOTE_ADDR"] }, { "e", email } };
+		frequencyLastWeek = Functions.GetSqlResult<int>(frequencySql, false, frequencyParams);
+	}
+
+	Functions.ExecuteSqlCommand("INSERT INTO Requests (wallet_name, wallet_type, case_insensitive, public_key, email, hash, ip_address, difficulty, hall_of_fame) VALUES(@n, @t, @c, @p, @e, @h, @i, @d, @f)", true,
+    	new Dictionary<string, object>{ 
+    		{ "n", walletName }, 
+    		{ "t", walletType }, 
+    		{ "c", case_insensitive }, 
+    		{ "p", publicKey }, 
+    		{ "e", email }, 
+    		{ "h", orderId },
+    		{ "i", Request["REMOTE_ADDR"] },
+    		{ "d", (long)diff },
+    		{ "f", hallOfFame }
+    	}
+    );
+
+    int requestId = Functions.GetSqlResult<int>("SELECT id FROM Requests WHERE hash= @h;", false, new Dictionary<string, object>{ {"h", orderId } });
+
+	if(diff > 55527913159 || frequencyLastWeek > 0)
+	{
+		double expectedSeconds = Functions.CalculateTimeForDifficulty(diff);
+		double priceUSD = Functions.CalculatePriceForTime(expectedSeconds);
+		if(priceUSD < 1.0 && frequencyLastWeek > 0)
+		{
+			priceUSD = 1.0;
+		}
+
+		if(priceUSD >= 1.0)
+		{
+			string description = "Payment for your vanity wallet '" + walletName + "'";
+
+			Dictionary<string, object> requestData = new Dictionary<string, object>() 
+		    {
+		        { "description", description },
+		        { "amount", priceUSD },
+		        { "customer_email", email },
+		        { "receipt_email", email },
+		        { "order_id", orderId },
+		        { "currency", "USD" },
+		        { "callback_url", "https://1splitkey.com/api/payment/" },
+		        { "success_url", "https://1splitkey.com/request_received.html" },
+		        { "auto_settle", true }
+		    };
+
+			string releaseKey = "b24edddc-e5b6-48c3-857b-6f415c53fc79";
+			string releaseUrl = "https://api.opennode.com/v1/charges";
+		    string testKey = "9a0e6970-b78e-48bd-9e72-8253c65142e5";
+		    string testUrl = "https://dev-api.opennode.com/v1/charges";
+
+
+			WebClient wc = new WebClient();
+			wc.Headers[HttpRequestHeader.Accept] = "application/json";
+		    wc.Headers[HttpRequestHeader.ContentType] = "application/json";
+			wc.Headers["Authorization"] = releaseKey;
+
+		    string json = JSON.JsonEncode(requestData);
+		    string resp = wc.UploadString(releaseUrl, "POST", json);
+		    Dictionary<string, object> response = JSON.JsonDecode(resp) as Dictionary<string, object>;
+		    Dictionary<string, object> responseData = response["data"] as Dictionary<string, object>;
+
+		    //Data to be used for DB payment insert
+		    string opennode_id = responseData["id"].ToString();
+		    string status = responseData["status"].ToString();
+		    //string description
+		    //string orderId
+		    string currency = "USD";
+		    double source_fiat_value = double.Parse(responseData["source_fiat_value"].ToString());
+
+		    Functions.ExecuteSqlCommand("INSERT INTO Payments (opennode_id, status, description, order_id, currency, source_fiat_value) VALUES(@o, @s, @d, @i, @c, @f)", true, 
+		    	new Dictionary<string, object>{
+		    		{"o", opennode_id }, 
+		    		{"s", status }, 
+		    		{"d", description }, 
+		    		{"i", orderId }, 
+		    		{"c", currency }, 
+		    		{"f", source_fiat_value } 
+		    	}
+		    );
+
+		    int PaymentId = Functions.GetSqlResult<int>("SELECT id FROM Payments WHERE opennode_id= @o;", false, new Dictionary<string, object>{ {"o", opennode_id } });
+			Functions.ExecuteSqlCommand("UPDATE Requests SET payment_id = @i WHERE id = @r;", true, new Dictionary<string, object>{{ "i", PaymentId }, { "r", requestId } });
+		    string checkoutUrl = responseData["hosted_checkout_url"].ToString();
+		    @Html.Raw(Functions.Success(new Dictionary<string, object>{{ "redirect", checkoutUrl }}))
+		}
+	}
+	else
+	{
+		@Html.Raw(Functions.Success(new Dictionary<string, object>{{ "redirect", "https://1splitkey.com/request_received.html" }}))
+	}
+}
+
+
+
+@functions
+{
+	private string CheckPublicKey(object pubKey, string walletType, ref Dictionary<string, object> errors)
+	{
+		string publicKey = pubKey.ToString();
+
+		if(string.IsNullOrEmpty(publicKey))
+		{
+			errors.Add("public_key", "No public key has been entered");
+			return null;
+		}
+
+		switch(walletType)
+		{
+			case "legacy":
+				if(publicKey.Length != 130) 
+				{
+					errors.Add("public_key", "Public key for Legacy wallets should be 65 digits (or 130 hexadecimal characters) long");
+					return null;
+				}
+				if(!Functions.IsHex(publicKey)) {
+					errors.Add("public_key", "The public key is incorrectly formatted");
+					return null;
+				}
+			break;
+
+			case "segwit bech32":
+			break;
+		}
+
+		return publicKey;
+	}
+
+	private string CheckWalletType(object type, ref Dictionary<string, object> errors)
+	{
+		string walletType = type.ToString().ToLower();
+		if(string.IsNullOrEmpty(walletType))
+		{
+			errors.Add("wallet_type", "No wallet type has been selected");
+			return null;
+		}
+
+		switch(walletType)
+		{
+			case "legacy": return walletType;
+
+			case "segwit p2sh":
+				errors.Add("wallet_type", "Segwit P2SH split key generation will be available soon");
+				return null;
+
+			case "segwit bech32":
+				errors.Add("wallet_type", "Segwit-Bech32 split key generation will be available soon");
+				return null;
+
+			default:
+				errors.Add("wallet_type", "The wallet type you entered is invalid");
+				return null;
+		}
+
+		/*List<string> allowedTypes = new List<string> { "legacy", "segwit p2sh", "segwit bech32" };
+		if(!allowedTypes.Contains(walletType))
+		{
+			errors.Add("wallet_type", "Invalid wallet type");
+			return null;
+		}*/
+
+		return walletType;
+	}
+
+	private string CheckEmail(object mail, ref Dictionary<string, object> errors)
+	{
+		string email = mail.ToString();
+
+		if(string.IsNullOrEmpty(email))
+		{
+			errors.Add("email", "Email is empty");
+			return null;
+		}
+
+		if(!email.Contains('@') || !email.Contains('.'))
+		{
+			errors.Add("email", "Invalid email address");
+			return null;
+		}
+
+		return email;
+	}
+
+	private bool CheckCI(object ci, ref Dictionary<string, object> errors)
+	{
+		string ciRaw = ci.ToString();
+		if(string.IsNullOrEmpty(ciRaw))
+		{
+			errors.Add("case_insensitive", "Case insensitive not set");
+			return false;
+		}
+
+		ciRaw = ciRaw.ToLower();
+		switch(ciRaw)
+		{
+			case "true": return true;
+			case "false": return false;
+			default:
+				errors.Add("case_insensitive", "Case insensitive invalid value");
+				return false;
+		}
+	}
+
+	private bool CheckHoF(object hof, ref Dictionary<string, object> errors)
+	{
+		string hofRaw = hof.ToString();
+		if(string.IsNullOrEmpty(hofRaw))
+		{
+			errors.Add("hall_of_fame", "Hall of Fame not set");
+			return false;
+		}
+
+		hofRaw = hofRaw.ToLower();
+
+		switch(hofRaw)
+		{
+			case "true": return true;
+			case "false": return false;
+			default:
+				errors.Add("hall_of_fame", "Hall of Fame invalid value");
+				return false;
+		}
+	}
+
+	private string CheckWalletName(object wallet, string walletType, bool ci, ref Dictionary<string, object> errors)
+	{
+		string walletName = wallet.ToString();
+		if(string.IsNullOrEmpty(walletName))
+		{
+			errors.Add("wallet_name", "Wallet name is empty");
+			return null;
+		}
+
+		int allowedLength = walletType == "legacy" ? 9 : walletType == "segwit p2sh" ? 9 : 10;
+
+		if(walletName.Length > allowedLength)
+		{
+			errors.Add("wallet_name", "Wallet name too long");
+			return null;
+		}
+
+		if(walletName.Contains("**") || walletName.Contains(' ') || walletName.Contains('\t'))
+		{
+			errors.Add("wallet_name", "Wallet name invalid format");
+			return null;
+		}
+
+		foreach(char chr in walletName)
+		{
+			if(!Char.IsLetter(chr) && !Char.IsNumber(chr))
+			{
+				errors.Add("wallet_name", "Wallet name contains characters which are neither a number nor alphabetical letter");
+				return null;
+			}
+		}
+
+		if(!ci)
+		{
+			switch(walletType)
+			{
+				case "legacy":
+					if( walletName.Contains('I') || walletName.Contains('l') || 
+						walletName.Contains('O') || walletName.Contains('0'))
+					{
+						errors.Add("wallet_name", "I (capital i), l (lowercase L), O (capital o) and 0 (zero) Are not allowed in case sensitive legacy wallet names");
+						return null;
+					}
+				break;
+
+				case "segwit p2sh":
+					if( walletName.Contains('I') || walletName.Contains('l') || 
+						walletName.Contains('O') || walletName.Contains('0'))
+					{
+						errors.Add("wallet_name", "I (capital i), l (lowercase L), O (capital o) and 0 (zero) Are not allowed in case sensitive P2SH wallet names");
+						return null;
+					}
+				break;
+
+				case "segwit bech32":
+					if( walletName.Contains('1') || walletName.Contains('b') || 
+						walletName.Contains('i') || walletName.Contains('o'))
+					{
+						errors.Add("wallet_name", "1 (one), i (lowercase I), b (lowercase B) and o (lowercase O) Are not allowed in case sensitive Segwit-Bech32 wallet names");
+						return null;
+					}
+					foreach(char chr in walletName)
+					{
+						if(chr >= 65 && chr <= 90)
+						{
+							errors.Add("wallet_name", "capital letters are not allowed in Segwit-Bech32 wallet names");
+							return null;
+						}
+					}
+				break;
+			}
+		}
+
+		if(walletType == "segwit p2sh")
+		{
+			string p2shStarters = "23456789ABCDEFGHIJKLMNOPQ";
+			if(ci)
+			{
+				p2shStarters += "abcdefghijklmnopq";
+			}
+
+			if(!p2shStarters.Contains(walletName[0]))
+			{
+				errors.Add("wallet_name", "The first character in a Segwit P2SH wallet must be a number, excluding 1 (one) and 0 (zero), or a capital letter from A through Q");
+				return null;
+			}
+		}
+
+		return walletName;
+	}
+}

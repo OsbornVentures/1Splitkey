@@ -1,0 +1,171 @@
+﻿@page "/"
+@using SplitKey.Dto
+@using SplitKey.Webpage.Data
+@using SplitKey.Webpage.Components
+
+<PageTitle>Index</PageTitle>
+
+<div id="successBanner" class="alert alert-success" role="alert" style="display:none">
+    We have received your request, see you soon!
+</div>
+
+<EditForm Model="@requestDto" class="requestForm">
+<div class="row">
+    <div class="col-6">
+        <div class="card">
+            <h5 class="card-header">Email</h5>
+            <div class="card-body">
+                Enter your email so we can email your partial private key when we complete it.
+                <p class="card-text">
+                    <InputText @bind-Value="@requestDto.Email" placeholder="Email Address" />
+                </p>
+            </div>
+        </div>
+        <div class="mt-lg-1" />
+
+        <div class="card" id="publicKeyCard">
+            <h5 class="card-header required">Public Key</h5>
+            <div class="card-body">
+                Enter your <b>public</b> key here, our merge tool should have walked you through this step.
+                <p class="card-text">
+                    <InputText @bind-Value="@requestDto.PublicKey" placeholder="Your Public Key"  />
+                </p>
+            </div>
+        </div>
+        <div class="mt-lg-1" />
+
+        <div class="card" id="walletTypeCard">
+            <h5 class="card-header required">Wallet type</h5>
+            <div class="card-body">
+                <p class="card-text">
+                    <InputRadioGroup @bind-Value="requestDto.WalletType">
+                        @foreach (var type in WalletTypes)
+                        {
+                            if(type.Enabled)
+                            {
+                                <InputRadio Value="type.Name" />
+                            }
+                            else
+                            {
+                                <InputRadio Value="type.Name" disabled /> 
+                            }
+                                <Tooltip Text="@type.Description">
+                                <b style="padding:5px; color:#17afca"> @type.Prefix</b> @type.Name
+                                </Tooltip>
+                                if(!type.Enabled)
+                                {
+                                <text> (coming soon!)</text>    
+                                }
+                            <br/>
+                        }
+                    </InputRadioGroup>
+                </p>
+            </div>
+        </div>
+        <div class="mt-lg-1" />
+
+         <div class="card" id="caseSensitiveCard">
+            <h5 class="card-header">Case Sensitive</h5>
+            <div class="card-body">
+                <p class="card-text">
+                    Case sensitive increases difficulty on our side<br/>
+                    but makes sure you wallet contains the capitalization you asked for.<br/>
+                    Disabling case sensitive could turn 'James' into 'jAMeS'. <br/>
+                    <InputCheckbox @bind-Value="requestDto.CaseSensitive"/>
+                    Enable case sensitive
+                </p>
+            </div>
+        </div>
+        <div class="mt-lg-1" />
+
+        <div class="card" id="walletNameCard">
+            <h5 class="card-header required">Wallet prefix Preference</h5>
+            <div class="card-body">
+                <p class="card-text">
+                    Want your wallet to start with 'James'?<br/>
+                    We will give you a live estimate on time and cost based on difficulty below.<br/>
+                    <b style="color:#17afca">@WalletTypes.First(x=> x.Name == requestDto.WalletType).Prefix</b>
+                    <InputText @bind-Value="requestDto.WalletName" placeholder= "James"/>
+                </p>
+            </div>
+        </div>
+        <div class="mt-lg-1" />
+
+        <div class="card" id="hallOfFameCard">
+            <h5 class="card-header">Hall of Fame</h5>
+            <div class="card-body">
+                <p class="card-text">
+                    Show in <a href="hall-of-fame">Hall of Fame</a><br/>
+                    Allow us to show your resulting wallet and it's vanity difficulty on our Hall of Fame page.<br/>
+                    Your wallet address is public and a potential hacker can't do anything with just your address.<br/>
+                    <InputCheckbox @bind-Value="requestDto.HallOfFame" placeholder/> I'm okay with that
+                </p>
+            </div>
+        </div>
+        <div class="mt-lg-1" />
+        <button class="btn btn-primary" @onclick="@SubmitForm">Submit Request</button>
+        <div class="mt-lg-5" />
+    </div>
+</div>
+</EditForm>
+
+
+
+@code{
+    private CreateRequestDto requestDto = new CreateRequestDto()
+    {
+        WalletType = "legacy"
+    };
+
+    [Inject] private HttpClient client { get; set; }
+    [Inject] private IHttpContextAccessor ctx { get; set; }
+
+    private async Task SubmitForm()
+    {
+        requestDto.IpAddress = ctx.HttpContext.Connection.RemoteIpAddress?.ToString();
+
+        var request = await client.PostAsJsonAsync<CreateRequestDto>("/api/requests", requestDto);
+        if (request.IsSuccessStatusCode)
+        {
+            // Show success banner
+            this.requestDto = new CreateRequestDto()
+            {
+                WalletType = "legacy"
+            };
+            this.StateHasChanged();
+        }
+        else
+        {
+            string response = await request.Content.ReadAsStringAsync();
+            //Show failure baner
+        }
+    }
+
+    List<WalletType> WalletTypes = new List<WalletType>
+    {
+        new WalletType
+        {
+            Name = "legacy",
+            LongName = "legacy",
+            Prefix = "1",
+            Description = "Legacy wallets all start with a 1.\n - O, I, 0 and l are forbidden characters while o, i and L are okay.\n - Legacy wallets have the highest transaction fees.\n - Legacy wallets are compatable with all services.",
+            Enabled = true
+        },
+        new WalletType
+        {
+            Name = "P2SH",
+            LongName = "Segwit P2SH",
+            Prefix = "3",
+            Description ="Segwit P2SH Wallets all start with 3.\n - Also reffered to as Multi-Signature Wallets.\n - Only numbers 2-9 and A-Q Allowed in the first digits.\n - O,I,0 and l are forbidden characters while o,i and L are okay.\n - P2SH wallet fees are about 25-35% lower then legacy wallets.",
+            Enabled = false
+        },
+        new WalletType
+        {
+            Name = "Bech32",
+            LongName = "Segwit Bech32",
+            Prefix = "bc1q",
+            Description = "Segwit Bech32 Wallets all start with bc1q.\n - Only lowercase letters can be used.\n - 1,b,i and o are not allowed.\n - Bech32 wallet fees are about 35-45% lower than legacy wallets.",
+            Enabled = false
+        }
+    };
+}

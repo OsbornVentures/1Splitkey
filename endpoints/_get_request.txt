@@ -1,0 +1,46 @@
+@using System.Linq
+
+@{
+	Dictionary<string, object> body = Functions.ParseBody();
+
+	if(body == null)
+	{
+		@Html.Raw(Functions.Failure("EMPTY_BODY"))
+		return;
+	}
+
+	if(!body.ContainsKey("worker_id"))
+	{
+		@Html.Raw(Functions.Failure("INVALID_PARAMETERS"))
+		return;
+	}
+
+	int workerId = int.Parse(body["worker_id"].ToString());
+	string findWorkerSql = "SELECT name FROM Workers WHERE id=@i";
+	Dictionary<string, object> findWorkerParams = new Dictionary<string, object>{ { "i", workerId } };
+	string workerName = Functions.GetSqlResult<string>(findWorkerSql, false, findWorkerParams);
+	if(string.IsNullOrEmpty(workerName))
+	{
+		@Html.Raw(Functions.Failure("INVALID_WORKER_ID"))
+		return;
+	}
+
+	string openRequestsSql ="SELECT id, wallet_name, wallet_type, case_insensitive, public_key, email, hash, (CASE WHEN payment_id IS NOT NULL THEN (SELECT status FROM Payments WHERE id = payment_id) ELSE 'paid' END) AS payment_status FROM Requests WHERE worker_id IS NULL AND wallet_result IS NULL;";
+	string[] keyLayout = new string[] { "id", "wallet_name", "wallet_type", "case_insensitive", "public_key", "email", "hash", "payment_status" };
+	List<Dictionary<string, object>> res = Functions.GetSqlSet(openRequestsSql, null, keyLayout).Where(x => x["payment_status"].ToString() == "paid").ToList();
+
+	if(res.Count > 0)
+	{
+		Dictionary<string, object> result = res[0];
+		string workerAssignSql = "UPDATE Requests SET worker_id=@w WHERE id=@i";
+		Dictionary<string, object> workerassignParams = new Dictionary<string, object> { { "w", workerId }, { "i", int.Parse(result["id"].ToString()) } };
+		//Functions.ExecuteSqlCommand(workerAssignSql, true, workerassignParams);
+		
+		@Html.Raw(Functions.Success(result))
+		return;
+	}
+	else
+	{
+		@Html.Raw(Functions.Failure("NO_MORE_WORK"))
+	}
+}
