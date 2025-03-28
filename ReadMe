@@ -1,0 +1,39 @@
+SplitKey - Distributed Computing Framework
+
+Disclaimer and Terms of Use
+
+By downloading, using, or distributing this software, you explicitly agree to the following terms:
+
+1. Purpose & Intent:
+
+SplitKey is released as open-source software purely for educational, research, and informational purposes. It demonstrates distributed computing concepts, cryptographic wallet management, and agent-based distributed hardware management.
+
+2. No Warranty:
+
+THIS SOFTWARE IS PROVIDED "AS IS" WITHOUT WARRANTY OF ANY KIND. THE AUTHOR(S) DISCLAIM ALL WARRANTIES, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, AND NON-INFRINGEMENT.
+
+3. Liability Limitation:
+
+UNDER NO CIRCUMSTANCES SHALL THE AUTHOR(S), CONTRIBUTORS, OR ANY AFFILIATED PARTY BE LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER LIABILITY ARISING FROM, OUT OF, OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE, INCLUDING BUT NOT LIMITED TO DAMAGES RESULTING FROM LOSS OF DATA, SECURITY BREACHES, FINANCIAL LOSSES, OR OTHER CONSEQUENTIAL DAMAGES.
+
+4. Security and Ethical Responsibility:
+
+You explicitly acknowledge and agree that this software contains advanced functionalities, potentially including agentic AI capabilities and cryptographic operations, and should be handled with caution. Users bear sole responsibility for ensuring compliance with applicable laws, ethical standards, and best practices when operating, distributing, or repurposing this software.
+
+5. No Malicious Use:
+
+You explicitly agree not to use this software for any malicious, unethical, illegal, or harmful purposes.
+
+6. Community and Public Release:
+
+The release of this software is intended to foster transparency, learning, and innovation within the community. Any previous distrust or uncertainty regarding this software due to its earlier closed-source status is explicitly acknowledged. Its public release intends to alleviate concerns by providing transparency.
+
+7. Acknowledgment of Risks:
+
+By using this software, you explicitly acknowledge the risks inherent in using software that manages cryptographic assets, distributed agents, and hardware management. You assume full responsibility for evaluating these risks.
+
+8. Acceptance:
+
+If you do not agree with any part of this disclaimer, do not download, use, distribute, or repurpose this software.
+
+© 2025 Osborn Ventures Inc. Released under the MIT License.
