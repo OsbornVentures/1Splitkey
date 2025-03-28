@@ -1,0 +1,9 @@
+Why multiple valid results?
+Due to the nature of Bitcoin's elliptic curve cryptography (ECC) and hashing process,
+ generating a targeted vanity Bitcoin address can yield up to six inherently valid keys per attempt—yet only one of these will match your desired prefix or pattern.
+
+This occurs because each ECC public key can be encoded and hashed in multiple ways (compressed/uncompressed, varying encoding methods).
+
+Thus, while SplitKey ensures the correctness and validity of generated addresses, you may occasionally see valid but unintended results alongside your intended vanity match.
+
+TL;DR: It's normal to see multiple valid addresses per attempt. Only one of these will match your target vanity address exactly. Always verify the final chosen address carefully.
