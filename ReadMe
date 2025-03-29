@@ -1,3 +1,63 @@
+# SplitKey - Distributed Computing Framework
+
+**SplitKey** is a modular and self-contained distributed computing framework originally built to coordinate GPU mining rigs for generating vanity Bitcoin wallets. It uses a server-client architecture to divide large computational tasks into smaller pieces, distribute them to worker machines, and collect verified results efficiently.
+
+While its roots lie in cryptography and blockchain experimentation, the underlying framework is highly adaptable. It can be repurposed for a wide range of distributed workloads such as:
+
+- Protein folding and scientific research
+- Stable Diffusion and AI image generation
+- LLM-based inference distribution
+- Mining rental management platforms
+- General-purpose GPU task delegation
+- Brute-force key exploration and prefix searching
+
+---
+
+## Features
+
+- **Agent-Handler Architecture:** Server coordinates work; clients execute and verify it.
+- **Split-Key Methodology:** Supports JeanLucPons' distributed key search and Pointbiz's key merger technique.
+- **Scalable & Modular:** Build your own client-side workers with ease.
+- **Secure by Design:** No client-side argument handlers are included to prevent misuse.
+- **Insightful Discoveries:** Observations hint at deeper structures in ECC, SHA256+RIPEMD160, and Base58 encoding.
+
+---
+
+## Why Release It?
+
+SplitKey operated in private for over a year and was known within the BitcoinTalk community. Due to growing concern over transparency, and in the spirit of open-source collaboration, it is now being released under the MIT License for research and development purposes.
+
+We do **not** condone malicious use. This software is provided strictly for educational and research applications.
+
+---
+
+## Getting Started
+
+1. Clone the repo.
+2. Explore the API and service layers.
+3. Build your own worker agent using the provided interfaces.
+4. Deploy and orchestrate distributed computing tasks at scale.
+
+---
+
+## Legal Disclaimer
+
+This software is provided “as-is” without warranty of any kind. By using or distributing SplitKey, you agree to the [terms outlined in the disclaimer](./DISCLAIMER.md) and accept full responsibility for all actions taken with the software.
+
+---
+
+## License
+
+MIT License  
+© 2025 [Osborn Ventures](https://github.com/OsbornVentures)
+
+---
+
+**Repository:**  
+[https://github.com/OsbornVentures/1Splitkey](https://github.com/OsbornVentures/1Splitkey)
+
+
+
 SplitKey - Distributed Computing Framework
 
 Disclaimer and Terms of Use
